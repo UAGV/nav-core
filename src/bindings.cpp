@@ -19,6 +19,7 @@
 #include "navcore/quaternion.hpp"
 #include "navcore/frames.hpp"
 #include "navcore/gnss_error.hpp"
+#include "navcore/ranging.hpp"
 #include "navcore/ekf.hpp"
 #include "navcore/eskf.hpp"
 
@@ -280,6 +281,56 @@ PYBIND11_MODULE(_navcore, m) {
         },
         py::arg("hdop"), py::arg("vdop"), py::arg("sigma_uere_m"),
         "3×3 NED position covariance [m²] from HDOP, VDOP, σ_UERE.");
+
+    // ---------------------------------------------------------------------- //
+    // Ranging geometry (UWB / TDOA / rangefinder / bearing)                   //
+    // ---------------------------------------------------------------------- //
+    m.def("range_m",
+        [](const py::array_t<double>& a, const py::array_t<double>& b) {
+            return range_m(vec3_from_numpy(a), vec3_from_numpy(b));
+        },
+        py::arg("a"), py::arg("b"),
+        "Euclidean range [m] between two 3-D points.");
+
+    m.def("range_diff_m",
+        [](const py::array_t<double>& user,
+           const py::array_t<double>& anchor_a,
+           const py::array_t<double>& anchor_b) {
+            return range_diff_m(vec3_from_numpy(user),
+                                vec3_from_numpy(anchor_a),
+                                vec3_from_numpy(anchor_b));
+        },
+        py::arg("user"), py::arg("anchor_a"), py::arg("anchor_b"),
+        "TDOA range difference [m] = range(user, a) − range(user, b).");
+
+    m.def("los_unit",
+        [](const py::array_t<double>& user, const py::array_t<double>& target) {
+            return vec3_to_numpy(los_unit(vec3_from_numpy(user), vec3_from_numpy(target)));
+        },
+        py::arg("user"), py::arg("target"),
+        "Unit line-of-sight user→target (range Jacobian = −los_unit).");
+
+    m.def("bearing_from_ned",
+        [](const py::array_t<double>& delta_ned) {
+            const Bearing brg = bearing_from_ned(vec3_from_numpy(delta_ned));
+            return py::make_tuple(brg.azimuth_rad, brg.elevation_rad);
+        },
+        py::arg("delta_ned"),
+        "Bearing of an NED displacement → (azimuth_rad, elevation_rad).");
+
+    m.def("range_dop",
+        [](const std::vector<std::array<double, 3>>& beacons,
+           const py::array_t<double>& user) {
+            const RangeDop dop = range_dop(beacons, vec3_from_numpy(user));
+            py::dict out;
+            out["hdop"] = dop.hdop;
+            out["vdop"] = dop.vdop;
+            out["pdop"] = dop.pdop;
+            out["gdop"] = dop.gdop;
+            return out;
+        },
+        py::arg("beacons"), py::arg("user"),
+        "Position DOP {hdop, vdop, pdop, gdop} for ranging to local beacons (NED).");
 
     // ---------------------------------------------------------------------- //
     // ESKF                                                                    //

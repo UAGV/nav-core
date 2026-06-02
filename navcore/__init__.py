@@ -8,6 +8,8 @@ Building blocks provided:
     Rotations      — quaternion [w,x,y,z] ↔ DCM ↔ ZYX Euler; composition; vector rotation.
     Frame transforms — WGS-84 LLH ↔ ECEF ↔ NED/ENU; lever-arm translation.
     GNSS error budget — UERE composition; DOP → σ_pos; NACp/EPU (DO-260B); timing-to-range.
+    Ranging geometry — Euclidean range, TDOA range-difference, line-of-sight unit
+                       vector, azimuth/elevation bearing, local-beacon range-DOP.
     EKF / ESKF     — general-purpose filter building blocks (see examples/ for usage).
 
 All functions are thin wrappers around the C++ extension _navcore.  Import
@@ -41,6 +43,11 @@ try:
         timing_to_range_sigma,
         timing_to_tdoa_range_sigma,
         gnss_position_covariance_ned,
+        range_m,
+        range_diff_m,
+        los_unit,
+        bearing_from_ned,
+        range_dop,
         ESKF_STATE_DIM,
         SPEED_OF_LIGHT_M_PER_S,
         WGS84_A,
@@ -54,7 +61,7 @@ except ImportError as exc:
         f"Original error: {exc}"
     ) from exc
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "Quaternion",
     "NominalState",
@@ -79,6 +86,11 @@ __all__ = [
     "timing_to_range_sigma",
     "timing_to_tdoa_range_sigma",
     "gnss_position_covariance_ned",
+    "range_m",
+    "range_diff_m",
+    "los_unit",
+    "bearing_from_ned",
+    "range_dop",
     "ESKF_STATE_DIM",
     "SPEED_OF_LIGHT_M_PER_S",
     "WGS84_A",

@@ -235,3 +235,45 @@ def test_eskf_attitude_stays_unit_after_yaw_rate() -> None:
         eskf.predict(gyro, accel, dt, Q)
     q = eskf.nominal_state.q_body_from_ned
     assert abs(float(np.linalg.norm(q)) - 1.0) < 1e-10
+
+
+# --------------------------------------------------------------------------- #
+# Ranging geometry (nav-core v0.2.0)                                          #
+# --------------------------------------------------------------------------- #
+
+def test_range_m() -> None:
+    assert nc.range_m(np.array([0.0, 0.0, 0.0]),
+                      np.array([3.0, 4.0, 0.0])) == pytest.approx(5.0)
+
+
+def test_range_diff_tdoa() -> None:
+    d = nc.range_diff_m(np.array([0.0, 0.0, 0.0]),
+                        np.array([5.0, 0.0, 0.0]),
+                        np.array([0.0, 12.0, 0.0]))
+    assert d == pytest.approx(-7.0)
+
+
+def test_los_unit() -> None:
+    u = nc.los_unit(np.array([0.0, 0.0, 0.0]), np.array([3.0, 4.0, 0.0]))
+    np.testing.assert_allclose(u, [0.6, 0.8, 0.0], atol=1e-12)
+
+
+def test_bearing_from_ned() -> None:
+    az, el = nc.bearing_from_ned(np.array([1.0, 1.0, 0.0]))
+    assert az == pytest.approx(math.pi / 4)
+    assert el == pytest.approx(0.0)
+    az_up, el_up = nc.bearing_from_ned(np.array([0.0, 0.0, -1.0]))
+    assert el_up == pytest.approx(math.pi / 2)
+
+
+def test_range_dop_orthogonal() -> None:
+    beacons = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    dop = nc.range_dop(beacons, np.array([0.0, 0.0, 0.0]))
+    assert dop["hdop"] == pytest.approx(math.sqrt(2.0), abs=1e-9)
+    assert dop["vdop"] == pytest.approx(1.0, abs=1e-9)
+    assert dop["pdop"] == pytest.approx(math.sqrt(3.0), abs=1e-9)
+
+
+def test_range_dop_too_few_beacons_raises() -> None:
+    with pytest.raises(Exception):
+        nc.range_dop([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], np.array([0.0, 0.0, 0.0]))
