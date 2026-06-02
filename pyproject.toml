@@ -1,0 +1,32 @@
+[build-system]
+requires = ["scikit-build-core>=0.6", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "nav-core"
+version = "0.1.0"
+description = "Navigation math foundation: rotations, frame transforms, GNSS error budget, EKF/ESKF estimators"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+navdata = ["nav-data @ git+https://github.com/UAGV/nav-data.git@v0.1.0"]
+dev     = ["pytest>=7", "ruff>=0.4", "mypy>=1.0"]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+wheel.packages    = ["navcore"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "ANN"]
+ignore = ["ANN101", "ANN102"]
+
+[tool.mypy]
+python_version = "3.10"
+strict         = true
+ignore_missing_imports = true

@@ -1,0 +1,14 @@
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+_skbuild/
+*.so
+*.pyd
+navcore/_navcore*.so
+navcore/_navcore*.pyd
+tests/.DS_Store
