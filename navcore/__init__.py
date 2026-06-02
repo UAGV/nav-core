@@ -1,21 +1,20 @@
-"""nav-core: Navigation math foundation.
+"""nav-core: Navigation math building blocks.
 
-Public surface:
-    Rotations and frame transforms — via the _navcore C++ extension.
-    GNSS error-budget math         — via the _navcore C++ extension.
-    ESKF estimator                 — via the _navcore C++ extension + Python wrapper.
-    TrajectoryEstimate             — pure Python dataclass (temporary, pre nav-data v0.2.0).
+nav-core is a library of mathematical functions and data structures for
+navigation algorithm development.  It is NOT an algorithm — it provides
+the primitives that algorithm implementations can be built from.
 
-Import the C++ bindings directly for low-level use:
-    from navcore._navcore import Eskf, NominalState, quaternion_to_dcm, ...
+Building blocks provided:
+    Rotations      — quaternion [w,x,y,z] ↔ DCM ↔ ZYX Euler; composition; vector rotation.
+    Frame transforms — WGS-84 LLH ↔ ECEF ↔ NED/ENU; lever-arm translation.
+    GNSS error budget — UERE composition; DOP → σ_pos; NACp/EPU (DO-260B); timing-to-range.
+    EKF / ESKF     — general-purpose filter building blocks (see examples/ for usage).
 
-Or use the high-level Python wrappers:
-    from navcore.estimator import run_eskf
-    from navcore.types import TrajectoryEstimate
+All functions are thin wrappers around the C++ extension _navcore.  Import
+directly from navcore or from navcore._navcore for the raw C++ bindings.
+
+Examples showing how to compose these into an estimator live in examples/.
 """
-
-from navcore.types import TrajectoryEstimate
-from navcore.estimator import run_eskf
 
 try:
     from navcore._navcore import (  # type: ignore[import]
@@ -45,6 +44,8 @@ try:
         ESKF_STATE_DIM,
         SPEED_OF_LIGHT_M_PER_S,
         WGS84_A,
+        WGS84_F,
+        WGS84_E2,
     )
 except ImportError as exc:
     raise ImportError(
@@ -55,8 +56,6 @@ except ImportError as exc:
 
 __version__ = "0.1.0"
 __all__ = [
-    "TrajectoryEstimate",
-    "run_eskf",
     "Quaternion",
     "NominalState",
     "Eskf",
@@ -83,4 +82,6 @@ __all__ = [
     "ESKF_STATE_DIM",
     "SPEED_OF_LIGHT_M_PER_S",
     "WGS84_A",
+    "WGS84_F",
+    "WGS84_E2",
 ]

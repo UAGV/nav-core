@@ -1,25 +1,31 @@
 # nav-core
 
-Navigation math foundation for the nav-toolkit. Provides:
+Math building blocks for navigation algorithm development.
 
-- **Rotations** — quaternion `[w,x,y,z]` ↔ DCM ↔ ZYX Euler; normalisation; composition; vector rotation.
-- **Frame transforms** — ECEF ↔ geodetic LLH ↔ NED/ENU (WGS-84); body↔nav; lever-arm application.
-- **GNSS error-budget math** — UERE composition; DOP → σ_pos; HDOP/VDOP/PDOP; NACp/EPU (DO-260B); σ_r = c·σ_t (timing-to-range, with √2 TDOA factor).
-- **Estimators** — a general EKF (predict/update with Jacobians) and a 15-state ESKF for INS (IMU mechanisation + GNSS position fusion).
+nav-core is a **library of functions and data structures**, not an algorithm.
+It provides the primitives that navigation algorithm implementations can be built
+from: rotation math, coordinate-frame transforms, GNSS error-budget functions,
+and filter building blocks (EKF/ESKF).  What you do with those building blocks
+— the algorithm itself — lives elsewhere.
 
-The C++ core is header-only and dependency-free. Python bindings are provided via pybind11.
+## Building blocks
 
-## State ordering (15-state ESKF)
+| Module | What it provides |
+|--------|-----------------|
+| `quaternion.hpp` | `[w,x,y,z]` quaternion ↔ DCM ↔ ZYX Euler; Hamilton product; vector rotation |
+| `frames.hpp` | WGS-84 LLH ↔ ECEF ↔ NED/ENU; Bowring iterative ECEF→LLH; lever-arm translation |
+| `gnss_error.hpp` | UERE composition; σ_pos = DOP·σ_UERE; PDOP; NACp/EPU (DO-260B); σ_r = c·σ_t and √2 TDOA factor |
+| `ekf.hpp` | Template `Ekf<N>`: predict/update with caller-supplied Jacobians; exposes innovation ν and S for NIS |
+| `eskf.hpp` | `Eskf`: 15-state INS error-state KF building block; `predict()`, `update()`, `update_gnss_position()` |
 
-Fixed across the toolkit — nav-eval uses this to compute NEES:
+The C++ headers are dependency-free.  Python bindings expose everything to numpy.
 
-| Index | State | Units |
-|-------|-------|-------|
-| 0–2   | δp    | m (NED) |
-| 3–5   | δv    | m/s (NED) |
-| 6–8   | δψ    | rad (rotation vector) |
-| 9–11  | δb_g  | rad/s |
-| 12–14 | δb_a  | m/s² |
+## Examples
+
+`examples/` shows how to compose these building blocks into an algorithm:
+
+- [`eskf_ins_example.py`](examples/eskf_ins_example.py) — driving the ESKF with IMU data and GNSS position fixes over a nav-data `NavDataset`.
+- [`trajectory_estimate_type.py`](examples/trajectory_estimate_type.py) — a `TrajectoryEstimate` dataclass wrapping ESKF output (precursor to nav-data v0.2.0).
 
 ## Install
 
@@ -28,39 +34,29 @@ Fixed across the toolkit — nav-eval uses this to compute NEES:
 pip install -e .
 ```
 
-## Quick start
-
-```python
-from navdata.store import hdf5
-from navcore.estimator import run_eskf
-
-dataset = hdf5.read("path/to/dataset.h5")
-estimate = run_eskf(dataset)
-print(estimate.summary())
-# TrajectoryEstimate(n=10000, estimator='ESKF-15', duration=100.0s)
-```
-
-## Low-level API
+## Quick reference
 
 ```python
 import navcore
-
-# Quaternion math
-q = navcore.euler_zyx_to_quaternion(roll_rad=0.1, pitch_rad=0.0, yaw_rad=1.57)
-R = navcore.quaternion_to_dcm(q)
-
-# Frame transforms
-ecef = navcore.llh_to_ecef(51.5, -0.12, 50.0)
-ned  = navcore.llh_to_ned(pos_llh, ref_llh)
-
-# GNSS error budget
-uere  = navcore.compute_uere(clock=1.0, ephemeris=0.5, iono=2.0, tropo=0.5, multipath=0.3, noise=0.3)
-sigma_h = navcore.dop_to_position_sigma(hdop=1.2, sigma_uere_m=uere)
-nacp  = navcore.epu_to_nacp(epu_95_m=2.0 * sigma_h)
-sigma_r = navcore.timing_to_range_sigma(sigma_time_s=10e-9)   # ~3 m per 10 ns
-
-# ESKF
 import numpy as np
+
+# --- Rotations ---
+q = navcore.euler_zyx_to_quaternion(roll_rad=0.1, pitch_rad=0.0, yaw_rad=1.57)
+R = navcore.quaternion_to_dcm(q)                    # (3, 3) float64
+v_body = navcore.rotate_vector(q, v_world)          # rotate world → body
+
+# --- Frame transforms ---
+ecef = navcore.llh_to_ecef(lat_deg=51.5, lon_deg=-0.12, height_m=50.0)
+ned  = navcore.llh_to_ned(pos_llh, ref_llh)         # NED offset from ref [m]
+enu  = navcore.ned_to_enu(ned)
+
+# --- GNSS error budget ---
+uere    = navcore.compute_uere(1.0, 0.5, 2.0, 0.5, 0.3, 0.3)  # σ_clock, σ_eph, σ_iono, ...
+sigma_h = navcore.dop_to_position_sigma(hdop=1.2, sigma_uere_m=uere)
+nacp    = navcore.epu_to_nacp(epu_95_m=2.0 * sigma_h)
+sigma_r = navcore.timing_to_range_sigma(sigma_time_s=10e-9)    # ~3 m per 10 ns
+
+# --- Filter building blocks ---
 nom = navcore.NominalState()
 nom.position_ned_m       = np.zeros(3)
 nom.velocity_ned_m_per_s = np.zeros(3)
@@ -70,7 +66,7 @@ eskf = navcore.Eskf(nom, P0, gravity_m_per_s2=9.80665)
 
 eskf.predict(gyro_body_rad_per_s, accel_body_m_per_s2, dt_s=0.01, Q_15x15=Q)
 eskf.update_gnss_position(gnss_ned_m, position_cov_diagonal_m2)
-print(eskf.nominal_state.position_ned_m)
+P = eskf.error_covariance           # (15, 15) — use P[0:3, 0:3] for position sub-block
 ```
 
 ## Tests
@@ -79,24 +75,33 @@ print(eskf.nominal_state.position_ned_m)
 # Python
 pytest tests/python/ -q
 
-# C++ (requires Catch2)
+# C++ (Catch2 fetched automatically)
 cmake -B build -DBUILD_TESTS=ON && cmake --build build
 cd build && ctest --output-on-failure
 ```
+
+## ESKF state ordering (15-state error model)
+
+Fixed — downstream packages that consume the covariance must use this ordering:
+
+| Index | State | Units |
+|-------|-------|-------|
+| 0–2   | δp    | m (NED) |
+| 3–5   | δv    | m/s (NED) |
+| 6–8   | δψ    | rad (rotation vector) |
+| 9–11  | δb_g  | rad/s |
+| 12–14 | δb_a  | m/s² |
+
+## Conventions
+
+- Quaternions: `[w, x, y, z]`, body-from-world (NED).  Body frame FRD, world frame NED.
+- Timestamps (where applicable): `int64` nanoseconds since Unix epoch — never `float64`.
+- All floating-point: `double` / `float64`.
 
 ## Dependencies
 
 | Layer | Deps |
 |-------|------|
-| C++ core (headers) | C++17 stdlib only |
-| Python bindings | pybind11 >= 2.11, numpy >= 1.24 |
-| High-level API | + nav-data (types + store only) |
-| Build | CMake >= 3.18, scikit-build-core >= 0.6 |
-
-## Conventions
-
-- Timestamps: `int64` nanoseconds since Unix epoch.
-- Quaternions: `[w, x, y, z]`, body-from-world (NED).
-- Body frame: FRD (Forward-Right-Down).
-- World frame: NED (North-East-Down).
-- All floating-point: `double` / `float64`.
+| C++ headers | C++17 stdlib only |
+| Python bindings | pybind11 ≥ 2.11, numpy ≥ 1.24 |
+| Build | CMake ≥ 3.18, scikit-build-core ≥ 0.6 |
