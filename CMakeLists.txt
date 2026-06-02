@@ -44,6 +44,7 @@ if(BUILD_TESTS)
         tests/cpp/test_quaternion.cpp
         tests/cpp/test_frames.cpp
         tests/cpp/test_gnss_error.cpp
+        tests/cpp/test_ranging.cpp
         tests/cpp/test_ekf.cpp
         tests/cpp/test_eskf.cpp
     )
