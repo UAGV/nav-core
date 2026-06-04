@@ -49,15 +49,16 @@ static Eskf::ErrorStateMat make_Q(double dt_s) {
 
 TEST_CASE("ESKF: stationary at rest with gravity-matched accel → stays at origin", "[eskf]") {
     // At rest, FRD body, NED world.  Gravity g = 9.80665 m/s² along NED-D.
-    // IMU accel reads [0, 0, +g] in body frame (FRD: down is positive body-z).
-    // After mechanisation: a_ned = [0,0,0], so position and velocity don't change.
+    // Specific force is the physical f = a − g, so at rest the accelerometer reads
+    // the "1 g up" reaction [0, 0, −g] in body frame (FRD: up is −body-z).
+    // After mechanisation: a_ned = f + g = [0,0,0], so position and velocity hold.
     auto P0 = make_P0();
     Eskf eskf(make_stationary_state(), P0, DEFAULT_GRAVITY_M_PER_S2);
     const double dt = 0.01;
     const auto Q = make_Q(dt);
 
     const std::array<double,3> gyro{0.0, 0.0, 0.0};
-    const std::array<double,3> accel{0.0, 0.0, DEFAULT_GRAVITY_M_PER_S2};
+    const std::array<double,3> accel{0.0, 0.0, -DEFAULT_GRAVITY_M_PER_S2};
 
     for (int i = 0; i < 100; ++i)
         eskf.predict(gyro, accel, dt, Q);
@@ -72,8 +73,8 @@ TEST_CASE("ESKF: stationary at rest with gravity-matched accel → stays at orig
 }
 
 TEST_CASE("ESKF: constant north acceleration → north velocity and position", "[eskf]") {
-    // IMU reads a = [a_fwd, 0, g] where a_fwd is forward (North in body FRD if
-    // nose points North), g compensates gravity.
+    // IMU reads specific force f = a − g = [a_fwd, 0, −g] where a_fwd is forward
+    // (North in body FRD if nose points North); the −g is the gravity reaction.
     auto P0 = make_P0();
     Eskf eskf(make_stationary_state(), P0, DEFAULT_GRAVITY_M_PER_S2);
     const double dt      = 0.01;  // 100 Hz
@@ -81,7 +82,7 @@ TEST_CASE("ESKF: constant north acceleration → north velocity and position", "
     const auto Q = make_Q(dt);
 
     const std::array<double,3> gyro{0.0, 0.0, 0.0};
-    const std::array<double,3> accel{a_north, 0.0, DEFAULT_GRAVITY_M_PER_S2};
+    const std::array<double,3> accel{a_north, 0.0, -DEFAULT_GRAVITY_M_PER_S2};
 
     int N = 100;  // 1 second of data
     for (int i = 0; i < N; ++i)
@@ -127,7 +128,7 @@ TEST_CASE("ESKF: attitude quaternion remains unit after predict", "[eskf]") {
 
     // Constant 0.1 rad/s yaw rate
     const std::array<double,3> gyro{0.0, 0.0, 0.1};
-    const std::array<double,3> accel{0.0, 0.0, DEFAULT_GRAVITY_M_PER_S2};
+    const std::array<double,3> accel{0.0, 0.0, -DEFAULT_GRAVITY_M_PER_S2};
 
     for (int i = 0; i < 200; ++i)
         eskf.predict(gyro, accel, dt, Q);

@@ -176,7 +176,7 @@ def test_eskf_stationary_stays_at_origin() -> None:
     dt = 0.01
     Q = _make_Q(dt)
     gyro  = np.zeros(3)
-    accel = np.array([0.0, 0.0, 9.80665])
+    accel = np.array([0.0, 0.0, -9.80665])  # physical f = a − g: 1 g up at rest
 
     for _ in range(100):
         eskf.predict(gyro, accel, dt, Q)
@@ -191,7 +191,7 @@ def test_eskf_constant_north_accel() -> None:
     dt = 0.01
     Q = _make_Q(dt)
     gyro  = np.zeros(3)
-    accel = np.array([1.0, 0.0, 9.80665])  # 1 m/s² north + gravity
+    accel = np.array([1.0, 0.0, -9.80665])  # f = a − g: 1 m/s² north, 1 g up
 
     for _ in range(100):  # 1 second
         eskf.predict(gyro, accel, dt, Q)
@@ -230,7 +230,7 @@ def test_eskf_attitude_stays_unit_after_yaw_rate() -> None:
     dt = 0.01
     Q = _make_Q(dt)
     gyro  = np.array([0.0, 0.0, 0.1])
-    accel = np.array([0.0, 0.0, 9.80665])
+    accel = np.array([0.0, 0.0, -9.80665])  # physical f = a − g
     for _ in range(200):
         eskf.predict(gyro, accel, dt, Q)
     q = eskf.nominal_state.q_body_from_ned
