@@ -43,12 +43,14 @@
  *
  *   At rest, q = identity, zero biases, zero velocity, g_ned = [0,0,9.81]:
  *
- *   IMU reads: a_body = [0, 0, 9.81] m/s² (feels gravity pointing down → FRD:
- *   down channel positive), ω_body = [0, 0, 0].
+ *   IMU reads specific force f = a − g.  At rest a = 0, so the accelerometer
+ *   reads the "1 g up" reaction a_body = [0, 0, −9.81] m/s² (FRD: up is −body-z),
+ *   ω_body = [0, 0, 0]. This is the physical convention real IMUs (and nav-sim)
+ *   emit.
  *
  *   After mechanisation with dt=0.01 s:
- *     a_ned = R_ned_from_body · (a_body − b_a) − g_ned
- *           = I · ([0,0,9.81] − 0) − [0,0,9.81] = [0,0,0]              ✓
+ *     a_ned = R_ned_from_body · (a_body − b_a) + g_ned
+ *           = I · ([0,0,−9.81] − 0) + [0,0,9.81] = [0,0,0]              ✓
  *     v_new = v + a_ned · dt = 0                                         ✓
  *     p_new = p + v · dt + 0.5 · a_ned · dt² = 0                        ✓
  *
@@ -139,7 +141,7 @@ public:
      * Nominal mechanisation (exact, not linearised):
      *   1. Remove biases from IMU readings.
      *   2. Integrate quaternion by angular velocity (1st-order Bortz equation).
-     *   3. Rotate specific force to NED, subtract gravity, integrate velocity.
+     *   3. Rotate specific force to NED, add gravity (a = f + g), integrate velocity.
      *   4. Integrate position.
      *
      * Error-state Jacobian F (15×15) linearised around the nominal.
@@ -186,11 +188,14 @@ public:
             R_body_from_ned[0][1]*f_body[0] + R_body_from_ned[1][1]*f_body[1] + R_body_from_ned[2][1]*f_body[2],
             R_body_from_ned[0][2]*f_body[0] + R_body_from_ned[1][2]*f_body[1] + R_body_from_ned[2][2]*f_body[2],
         };
-        // a_ned = f_ned − g_ned  (g = [0, 0, +g] in NED Down-positive)
+        // Specific force is the PHYSICAL accelerometer convention f = a − g (the
+        // accelerometer measures non-gravitational proper acceleration), so the
+        // kinematic acceleration is a = f + g, with g_ned = [0, 0, +g] (NED,
+        // Down-positive). At rest f = −g (the "1 g up" reaction) and a = 0.
         const std::array<double, 3> a_ned{
             f_ned[0],
             f_ned[1],
-            f_ned[2] - gravity_m_per_s2_,
+            f_ned[2] + gravity_m_per_s2_,
         };
 
         // --- 4. Velocity and position integration ---
