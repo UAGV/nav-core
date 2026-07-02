@@ -359,7 +359,8 @@ PYBIND11_MODULE(_navcore, m) {
                 s.bias_accel_m_per_s2 = vec3_from_numpy(v); });
 
     py::class_<Eskf>(m, "Eskf",
-        "15-state Error-State Kalman Filter for INS mechanisation.\n\n"
+        "15-state Error-State Kalman Filter for aided inertial navigation (INS/GNSS).\n"
+        "The filter engine an INS/GNSS estimator is built on, not itself an INS.\n\n"
         "Error-state ordering (0-indexed):\n"
         "  0-2:   δp  position error [m]   (NED)\n"
         "  3-5:   δv  velocity error [m/s] (NED)\n"

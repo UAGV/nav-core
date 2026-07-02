@@ -28,9 +28,11 @@ def test_quaternion_to_dcm_90deg_yaw() -> None:
     c, s = math.cos(math.pi / 4), math.sin(math.pi / 4)
     q = np.array([c, 0.0, 0.0, s])
     R = nc.quaternion_to_dcm(q)
-    # body-x (row 0 of R applied to world-x) should point world-y
-    np.testing.assert_allclose(R[0, 0], 0.0, atol=1e-14)
-    np.testing.assert_allclose(R[0, 1], 1.0, atol=1e-14)
+    # quaternion_to_dcm(q) is the body→world (active) DCM, consistent with
+    # rotate_vector: for +90° yaw, body-x maps to world +y, so column 0 = [0, 1, 0]
+    # and the matrix is the active z-rotation [[0,-1,0],[1,0,0],[0,0,1]]. [NAV-021/NAV-002b]
+    np.testing.assert_allclose(R @ np.array([1.0, 0.0, 0.0]), [0.0, 1.0, 0.0], atol=1e-14)
+    np.testing.assert_allclose(R[0, 1], -1.0, atol=1e-14)
 
 
 def test_rotate_vector_identity() -> None:

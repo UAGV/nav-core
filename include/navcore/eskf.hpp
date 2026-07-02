@@ -1,8 +1,10 @@
 /**
  * @file eskf.hpp
- * @brief Error-State Kalman Filter (ESKF) for INS: 15-state error model.
+ * @brief Error-State Kalman Filter (ESKF): 15-state error model. The filter
+ *        engine an aided inertial navigation system (INS/GNSS) is built on —
+ *        not itself an INS.
  *
- * ─── Why ESKF instead of a standard EKF on the full INS state? ──────────────
+ * ─── Why ESKF instead of a standard EKF on the full navigation state? ───────
  *
  *   Attitude is a rotation, which lives on SO(3) — a manifold, not a vector
  *   space.  If you track attitude directly as a quaternion you have to
@@ -20,7 +22,7 @@
  *        state (the "reset" step) and re-zeroes the error state.
  *
  *   This avoids over-parameterisation, keeps P well-conditioned, and is the
- *   industry standard for high-grade INS (Farrell 2008, Sola 2017).
+ *   industry standard for high-grade INS/GNSS (Farrell 2008, Sola 2017).
  *
  * ─── State ordering (FIXED — nav-eval must match) ───────────────────────────
  *
@@ -79,7 +81,7 @@ namespace navcore {
 /// Number of error-state dimensions (fixed across the toolkit).
 inline constexpr int ESKF_STATE_DIM = 15;
 
-/** Nominal INS state (world = NED, body = FRD). */
+/** Nominal navigation state (world = NED, body = FRD). */
 struct NominalState {
     std::array<double, 3> position_ned_m{};
     std::array<double, 3> velocity_ned_m_per_s{};
@@ -92,7 +94,9 @@ struct NominalState {
 inline constexpr double DEFAULT_GRAVITY_M_PER_S2 = 9.80665;
 
 /**
- * 15-state Error-State Kalman Filter for INS mechanisation.
+ * 15-state Error-State Kalman Filter for aided inertial navigation (INS/GNSS).
+ * Its predict step runs the strapdown inertial mechanisation; its updates fuse
+ * external aiding measurements.
  *
  * Call sequence:
  *   1. Construct with initial nominal state and error covariance.
@@ -109,7 +113,7 @@ public:
     /**
      * Construct an ESKF.
      *
-     * @param initial_nominal   Starting nominal INS state.
+     * @param initial_nominal   Starting nominal navigation state.
      * @param initial_P         15×15 initial error covariance, row-major.
      * @param gravity_m_per_s2  Gravity magnitude [m/s²], default WGS-84 standard.
      */
@@ -180,13 +184,14 @@ public:
         const Quaternion q_new = (nominal_.q_body_from_ned * dq).normalised();
 
         // --- 3. Specific force in NED  ---
-        // R_ned_from_body = DCM(q_body_from_ned)ᵀ
-        const auto R_body_from_ned = quaternion_to_dcm(nominal_.q_body_from_ned);
-        // f_ned = R^T * f_body
+        // quaternion_to_dcm(q) is the body→world (NED-from-body) rotation — it maps a
+        // body vector into NED: rotate_vector(q, v_body) == R · v_body. So the body
+        // specific force rotates into NED as f_ned = R · f_body (NO transpose). [NAV-021]
+        const auto R_ned_from_body = quaternion_to_dcm(nominal_.q_body_from_ned);
         const std::array<double, 3> f_ned{
-            R_body_from_ned[0][0]*f_body[0] + R_body_from_ned[1][0]*f_body[1] + R_body_from_ned[2][0]*f_body[2],
-            R_body_from_ned[0][1]*f_body[0] + R_body_from_ned[1][1]*f_body[1] + R_body_from_ned[2][1]*f_body[2],
-            R_body_from_ned[0][2]*f_body[0] + R_body_from_ned[1][2]*f_body[1] + R_body_from_ned[2][2]*f_body[2],
+            R_ned_from_body[0][0]*f_body[0] + R_ned_from_body[0][1]*f_body[1] + R_ned_from_body[0][2]*f_body[2],
+            R_ned_from_body[1][0]*f_body[0] + R_ned_from_body[1][1]*f_body[1] + R_ned_from_body[1][2]*f_body[2],
+            R_ned_from_body[2][0]*f_body[0] + R_ned_from_body[2][1]*f_body[1] + R_ned_from_body[2][2]*f_body[2],
         };
         // Specific force is the PHYSICAL accelerometer convention f = a − g (the
         // accelerometer measures non-gravitational proper acceleration), so the
@@ -222,8 +227,8 @@ public:
         //   F_pp = I + 0 (position ← velocity)
         //   F_pv = I·dt
         //   F_vv = I
-        //   F_vψ = −[R^T · f_body]× · dt  (skew-symmetric of f_ned)
-        //   F_vb_a = −R^T · dt
+        //   F_vψ = [f_ned]× · dt   (skew-symmetric of the NED specific force)
+        //   F_vb_a = −R · dt       (R = body→world; NAV-021: was wrongly Rᵀ)
         //   F_ψψ = I − [ω]× · dt
         //   F_ψb_g = −I · dt
         ErrorStateMat F_row_major{};
@@ -243,10 +248,11 @@ public:
         F_row_major[5 * ESKF_STATE_DIM + 6] = -fy * dt_s;
         F_row_major[5 * ESKF_STATE_DIM + 7] =  fx * dt_s;
 
-        // F_vb_a = −R^T · dt  (rows 3..5, cols 12..14)
+        // F_vb_a = −R · dt  (rows 3..5, cols 12..14): a body-frame accel-bias error maps
+        // into NED velocity error through the same body→world rotation R.  [NAV-021]
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < 3; ++j)
-                F_row_major[(3 + i) * ESKF_STATE_DIM + (12 + j)] = -R_body_from_ned[j][i] * dt_s;
+                F_row_major[(3 + i) * ESKF_STATE_DIM + (12 + j)] = -R_ned_from_body[i][j] * dt_s;
 
         // F_ψψ = I − skew(ω) · dt  (rows 6..8, cols 6..8)  — already I from above
         const double ox = omega[0], oy = omega[1], oz = omega[2];
