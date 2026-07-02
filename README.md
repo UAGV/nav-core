@@ -16,9 +16,23 @@ and filter building blocks (EKF/ESKF).  What you do with those building blocks
 | `frames.hpp` | WGS-84 LLH ↔ ECEF ↔ NED/ENU; Bowring iterative ECEF→LLH; lever-arm translation |
 | `gnss_error.hpp` | UERE composition; σ_pos = DOP·σ_UERE; PDOP; NACp/EPU (DO-260B); σ_r = c·σ_t and √2 TDOA factor |
 | `ekf.hpp` | Template `Ekf<N>`: predict/update with caller-supplied Jacobians; exposes innovation ν and S for NIS |
-| `eskf.hpp` | `Eskf`: 15-state INS error-state KF building block; `predict()`, `update()`, `update_gnss_position()` |
+| `eskf.hpp` | `Eskf`: 15-state error-state KF building block (the filter engine for aided inertial navigation, INS/GNSS); `predict()`, `update()`, `update_gnss_position()` |
 
 The C++ headers are dependency-free.  Python bindings expose everything to numpy.
+
+## Documentation
+
+[`docs/`](docs/) documents the Python API the way you use it while building an
+algorithm — each function group with a concept section, the conventions that
+bite, and **worked numerical examples you can check by hand** (every number is
+produced by the shipped module and pinned by [`tests/python/test_bindings.py`](tests/python/test_bindings.py)).
+
+- [`docs/README.md`](docs/README.md) — index + the conventions that bite (start here)
+- [`docs/rotations.md`](docs/rotations.md) — quaternions, DCMs, ZYX Euler, `rotate_vector`
+- [`docs/frames.md`](docs/frames.md) — LLH ↔ ECEF ↔ NED/ENU and the antenna lever arm
+- [`docs/gnss-error.md`](docs/gnss-error.md) — UERE → DOP → σ_pos, NACp/EPU, timing-to-range
+- [`docs/ranging.md`](docs/ranging.md) — range, TDOA, line-of-sight Jacobian, bearing, range-DOP
+- [`docs/eskf.md`](docs/eskf.md) — driving the 15-state ESKF engine end to end
 
 ## Examples
 
