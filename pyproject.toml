@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "nav-core"
-version = "0.2.2"
+version = "0.2.3"
 description = "Navigation math foundation: rotations, frame transforms, GNSS error budget, EKF/ESKF estimators"
 readme = "README.md"
 license = { text = "MIT" }

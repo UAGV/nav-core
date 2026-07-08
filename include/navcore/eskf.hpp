@@ -227,7 +227,8 @@ public:
         //   F_pp = I + 0 (position ← velocity)
         //   F_pv = I·dt
         //   F_vv = I
-        //   F_vψ = [f_ned]× · dt   (skew-symmetric of the NED specific force)
+        //   F_vψ = −R·[f_body]× · dt  (δψ is body-side; NAV-022: was the
+        //                              old-scheme +[f_ned]×)
         //   F_vb_a = −R · dt       (R = body→world; NAV-021: was wrongly Rᵀ)
         //   F_ψψ = I − [ω]× · dt
         //   F_ψb_g = −I · dt
@@ -238,15 +239,28 @@ public:
         // F_pv = I·dt  (rows 0..2, cols 3..5)
         for (int i = 0; i < 3; ++i) F_row_major[i * ESKF_STATE_DIM + (3 + i)] = dt_s;
 
-        // F_vψ = skew(f_ned) · dt  (rows 3..5, cols 6..8)
-        // skew([fx,fy,fz]) = [[0,-fz,fy],[fz,0,-fx],[-fy,fx,0]]
-        const double fx = f_ned[0], fy = f_ned[1], fz = f_ned[2];
-        F_row_major[3 * ESKF_STATE_DIM + 7] = -fz * dt_s;
-        F_row_major[3 * ESKF_STATE_DIM + 8] =  fy * dt_s;
-        F_row_major[4 * ESKF_STATE_DIM + 6] =  fz * dt_s;
-        F_row_major[4 * ESKF_STATE_DIM + 8] = -fx * dt_s;
-        F_row_major[5 * ESKF_STATE_DIM + 6] = -fy * dt_s;
-        F_row_major[5 * ESKF_STATE_DIM + 7] =  fx * dt_s;
+        // F_vψ = −R·[f_body]×·dt  (rows 3..5, cols 6..8).  δψ is the BODY-side
+        // attitude error (the injection is q ⊗ δq), so R_true = R·(I + [δψ]×) and
+        // δv̇ = R·[δψ]×·f_body = −R·[f_body]×·δψ  (Sola 2017 eq. 270c).
+        // Under the pre-NAV-021 transposed scheme the correct block was
+        // +[f_ned]×·dt; NAV-021 fixed the mechanisation and F_vb_a but left this
+        // block at the old-scheme value, so velocity↔attitude cross-covariance
+        // built with the wrong sign and every aiding update pushed roll/pitch
+        // away from truth. [NAV-022]
+        // skew([ax,ay,az]) = [[0,-az,ay],[az,0,-ax],[-ay,ax,0]]
+        const double fbx = f_body[0], fby = f_body[1], fbz = f_body[2];
+        const std::array<std::array<double, 3>, 3> skew_f_body{{
+            {{0.0, -fbz, fby}},
+            {{fbz, 0.0, -fbx}},
+            {{-fby, fbx, 0.0}},
+        }};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) {
+                double r_skew_ij = 0.0;
+                for (int k = 0; k < 3; ++k)
+                    r_skew_ij += R_ned_from_body[i][k] * skew_f_body[k][j];
+                F_row_major[(3 + i) * ESKF_STATE_DIM + (6 + j)] = -r_skew_ij * dt_s;
+            }
 
         // F_vb_a = −R · dt  (rows 3..5, cols 12..14): a body-frame accel-bias error maps
         // into NED velocity error through the same body→world rotation R.  [NAV-021]
