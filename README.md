@@ -89,9 +89,12 @@ P = eskf.error_covariance           # (15, 15) — use P[0:3, 0:3] for position 
 # Python
 pytest tests/python/ -q
 
-# C++ (Catch2 fetched automatically)
-cmake -B build -DBUILD_TESTS=ON && cmake --build build
-cd build && ctest --output-on-failure
+# C++ (Catch2 fetched automatically). The pybind11_DIR hint is required when
+# cmake runs standalone — pip injects it, a bare cmake configure cannot find it.
+# A separate build dir keeps the editable-install build/ untouched.
+cmake -S . -B build-tests -DBUILD_TESTS=ON -Dpybind11_DIR=$(python -m pybind11 --cmakedir)
+cmake --build build-tests -j
+ctest --test-dir build-tests --output-on-failure
 ```
 
 ## ESKF state ordering (15-state error model)

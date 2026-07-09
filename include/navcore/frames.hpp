@@ -33,6 +33,8 @@
 #include <array>
 #include <cmath>
 
+#include "quaternion.hpp"  // Quaternion, quaternion_to_dcm (used by apply_lever_arm)
+
 namespace navcore {
 
 // -------------------------------------------------------------------------- //
@@ -225,13 +227,18 @@ enu_to_ned(const std::array<double, 3>& enu) noexcept {
  * body-frame vector l_body_m, the position measured by the antenna differs from
  * the IMU position by:
  *
- *   p_ref_world = p_antenna_world − R_world_from_body · l_body_m
+ *   p_ref_world = p_antenna_world − R · l_body_m
  *
- * where R_world_from_body = DCM(q).T  (because q is body-from-world, so
- * R_body_from_world = DCM(q), and its transpose rotates body → world).
+ * where R = quaternion_to_dcm(q) is the **body→world** (active) rotation — the
+ * NAV-021 convention: rotate_vector(q, v_body) = v_world, no transpose. (The
+ * pre-NAV-022 code applied Rᵀ, derived from reading the parameter name as a
+ * world→body map — the same transpose family the rest of the toolkit shed.)
  *
- * Worked case — q = identity, l_body = [0.5, 0, 0]:
- *   p_ref = p_antenna − [0.5, 0, 0].                                     ✓
+ * Worked cases —
+ *   q = identity, l_body = [0.5, 0, 0]:
+ *     p_ref = p_antenna − [0.5, 0, 0].                                    ✓
+ *   q = 90° yaw [cos 45°, 0, 0, sin 45°], l_body = [0.5, 0, 0]:
+ *     body-x points along world-y, so p_ref = p_antenna − [0, 0.5, 0].    ✓
  *
  * @param p_antenna_world_m  Antenna position in world frame [m].
  * @param q_body_from_world  Attitude quaternion (body-from-world).
@@ -242,13 +249,11 @@ enu_to_ned(const std::array<double, 3>& enu) noexcept {
 apply_lever_arm(const std::array<double, 3>& p_antenna_world_m,
                 const Quaternion& q_body_from_world,
                 const std::array<double, 3>& lever_arm_body_m) noexcept {
-    // Rotate lever arm from body to world: R^T · l_body
-    // R^T is DCM of q* (conjugate)
+    // Rotate lever arm from body to world: l_world = R · l_body  [NAV-022]
     const auto R = quaternion_to_dcm(q_body_from_world);
-    // R^T multiplied by lever_arm_body
-    const double lw_x = R[0][0]*lever_arm_body_m[0] + R[1][0]*lever_arm_body_m[1] + R[2][0]*lever_arm_body_m[2];
-    const double lw_y = R[0][1]*lever_arm_body_m[0] + R[1][1]*lever_arm_body_m[1] + R[2][1]*lever_arm_body_m[2];
-    const double lw_z = R[0][2]*lever_arm_body_m[0] + R[1][2]*lever_arm_body_m[1] + R[2][2]*lever_arm_body_m[2];
+    const double lw_x = R[0][0]*lever_arm_body_m[0] + R[0][1]*lever_arm_body_m[1] + R[0][2]*lever_arm_body_m[2];
+    const double lw_y = R[1][0]*lever_arm_body_m[0] + R[1][1]*lever_arm_body_m[1] + R[1][2]*lever_arm_body_m[2];
+    const double lw_z = R[2][0]*lever_arm_body_m[0] + R[2][1]*lever_arm_body_m[1] + R[2][2]*lever_arm_body_m[2];
     return {
         p_antenna_world_m[0] - lw_x,
         p_antenna_world_m[1] - lw_y,

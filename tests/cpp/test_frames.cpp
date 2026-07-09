@@ -91,3 +91,18 @@ TEST_CASE("Lever arm: identity attitude, lever along x → subtract lever from x
     REQUIRE_THAT(p_ref[1], WithinAbs(5.0, 1e-13));
     REQUIRE_THAT(p_ref[2], WithinAbs(2.0, 1e-13));
 }
+
+TEST_CASE("Lever arm: 90 deg yaw rotates the body-x lever onto world-y", "[frames]") {
+    // Body→world is the ACTIVE rotation (NAV-021 convention): at +90° yaw the
+    // body-x lever points along world-y, so p_ref = p_ant − [0, 0.5, 0]. The
+    // pre-NAV-022 transposed code gave p_ant − [0, −0.5, 0] — pinned here so the
+    // wrong direction cannot return.
+    const double half_sqrt2 = std::sqrt(0.5);
+    Quaternion q{half_sqrt2, 0.0, 0.0, half_sqrt2};  // +90° yaw about NED-down
+    std::array<double,3> p_ant{10.0, 20.0, 30.0};
+    std::array<double,3> lever{ 0.5, 0.0, 0.0};
+    auto p_ref = apply_lever_arm(p_ant, q, lever);
+    REQUIRE_THAT(p_ref[0], WithinAbs(10.0, 1e-13));
+    REQUIRE_THAT(p_ref[1], WithinAbs(19.5, 1e-13));
+    REQUIRE_THAT(p_ref[2], WithinAbs(30.0, 1e-13));
+}

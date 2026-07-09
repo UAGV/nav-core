@@ -61,7 +61,7 @@ except ImportError as exc:
         f"Original error: {exc}"
     ) from exc
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 __all__ = [
     "Quaternion",
     "NominalState",

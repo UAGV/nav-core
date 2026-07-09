@@ -104,6 +104,19 @@ def test_apply_lever_arm_identity_attitude() -> None:
     np.testing.assert_allclose(p_ref, [9.5, 5.0, 2.0], atol=1e-13)
 
 
+def test_apply_lever_arm_90deg_yaw_rotates_lever_to_world_y() -> None:
+    # Body→world is the ACTIVE rotation (NAV-021 convention): at +90° yaw the
+    # body-x lever points along world-y, so p_ref = p_ant − [0, 0.5, 0]. The
+    # pre-NAV-022 transposed code gave p_ant − [0, −0.5, 0] — pinned so the
+    # wrong direction cannot return.
+    half_sqrt2 = np.sqrt(0.5)
+    q = np.array([half_sqrt2, 0.0, 0.0, half_sqrt2])  # +90° yaw about NED-down
+    p_ant = np.array([10.0, 20.0, 30.0])
+    lever = np.array([0.5, 0.0, 0.0])
+    p_ref = nc.apply_lever_arm(p_ant, q, lever)
+    np.testing.assert_allclose(p_ref, [10.0, 19.5, 30.0], atol=1e-13)
+
+
 # --------------------------------------------------------------------------- #
 # GNSS error budget                                                           #
 # --------------------------------------------------------------------------- #

@@ -12,3 +12,4 @@ _skbuild/
 navcore/_navcore*.so
 navcore/_navcore*.pyd
 tests/.DS_Store
+build-tests/
